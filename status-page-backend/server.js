@@ -1,23 +1,54 @@
-// server.js or app.js
 const express = require('express');
-const connectDB = require('./config/db');
+const http = require('http');
 const cors = require('cors');
-const app = express();
+const dotenv = require('dotenv');
+const connectDB = require('./config/db');
+const { errorHandler, notFound } = require('./middleware/errorMiddleware');
+const { initializeSocketIO } = require('./utils/websocketManager');
+
+// Load environment variables
+dotenv.config();
 
 // Connect to MongoDB
 connectDB();
 
+// Initialize Express
+const app = express();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-app.get('/', (req, res) => {
-    res.send('API is running...');
+// Routes
+app.use('/api/organizations', require('./routes/organizationRoutes'));
+app.use('/api/team', require('./routes/teamRoutes'));
+app.use('/api/services', require('./routes/serviceRoutes'));
+app.use('/api/incidents', require('./routes/incidentRoutes'));
+app.use('/api/public', require('./routes/publicRoutes'));
+
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date() });
 });
 
-// Routes (to be added later)
-// app.use('/api/organizations', require('./routes/organizations'));
-// ...
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+initializeSocketIO(server);
+
+// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
